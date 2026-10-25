@@ -87,7 +87,7 @@
 const SUPABASE_URL = 'https://otcvaqijccboixomuwxr.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_mzxr97ySxjXNTTTOP2xEFQ_Ho9rHIfX';
 const FUNCTION_URL = SUPABASE_URL + '/functions/v1/admin';
-const sbc = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+const sbc = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY, { auth: { storageKey: 'helatek-admin-auth', persistSession: true, autoRefreshToken: true } });
 let clientes = [];
 
 function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
