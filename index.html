@@ -153,7 +153,8 @@ function render(){
     <td>${fecha(c.last_sign_in_at)}</td>
     <td><span class="pill ${c.devices>=2?'full':''}">${c.devices} / 2</span></td>
     <td><div class="acts">
-      <button class="btn sec sm" onclick="abrirPass('${c.id}','${esc(c.email)}')">Contraseña</button>
+      <button class="btn sec sm" onclick="abrirPass('${c.id}','${esc(c.email)}')">Cambiar contraseña</button>
+      <button class="btn sec sm" onclick="enviarRecuperacion('${esc(c.email)}')">Correo recuperación</button>
       <button class="btn sec sm" onclick="abrirDispositivos('${c.id}','${esc(c.email)}')">Dispositivos</button>
       <button class="btn rojo sm" onclick="borrarCliente('${c.id}','${esc(c.email)}')">Borrar</button>
     </div></td>
@@ -183,6 +184,22 @@ async function crearCliente(){
   btn.disabled=true; btn.textContent='Creando…'; msg.textContent='';
   try{ await callAdmin({ action:'create', email, password: pass }); cerrarModal(); await cargar(); }
   catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Crear cliente'; }
+}
+
+// ---------- CORREO DE RECUPERACIÓN ----------
+async function enviarRecuperacion(email){
+  modal(`<h3>Enviar correo de recuperación</h3><p class="hint">Se enviará a <b>${email}</b> un correo con un enlace para que <b>elija su propia contraseña</b>. Avísale de que revise también la carpeta de spam.</p>
+    <div id="r-msg" class="msg"></div>
+    <div class="row"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="r-btn" onclick="confirmarRecuperacion('${email}')">Enviar correo</button></div>`);
+}
+async function confirmarRecuperacion(email){
+  const btn=document.getElementById('r-btn'), msg=document.getElementById('r-msg');
+  btn.disabled=true; btn.textContent='Enviando…'; msg.textContent='';
+  try{
+    const { error } = await sbc.auth.resetPasswordForEmail(email, { redirectTo: 'https://hcassata.github.io/helatek-total/reset.html' });
+    if(error) throw error;
+    modal(`<h3>✅ Correo enviado</h3><p class="hint">Hemos enviado a <b>${email}</b> un enlace para cambiar la contraseña. Dile que revise su correo (y la carpeta de spam).</p><div class="row"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`);
+  }catch(e){ msg.textContent='No se pudo enviar: '+e.message; btn.disabled=false; btn.textContent='Enviar correo'; }
 }
 
 // ---------- CAMBIAR CONTRASEÑA ----------
