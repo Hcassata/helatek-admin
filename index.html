@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Helatek · Panel de administración</title>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
+<style>
+  :root{--verde:#2A4A44;--verde2:#21403C;--verde3:#3C7B6F;--crema:#F5F3EE;--naranja:#E3A85C;--naranja2:#d08c3a;--tinta:#243b37;--gris:#6b7d78;--gris2:#dfe8e5;--rojo:#c0564a}
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'Segoe UI',system-ui,-apple-system,Helvetica,Arial,sans-serif;color:var(--tinta);background:#eef3f1}
+  #login{display:flex;position:fixed;inset:0;z-index:100;background:linear-gradient(160deg,#2F514A,#21403C);align-items:center;justify-content:center}
+  #login form{background:var(--crema);padding:34px 30px;border-radius:18px;width:330px;max-width:90vw;box-shadow:0 20px 60px rgba(0,0,0,.35);text-align:center}
+  #login .t{font-size:22px;font-weight:800;color:var(--verde2)}
+  #login .s{font-size:12px;color:var(--gris);margin:4px 0 20px}
+  input{width:100%;padding:11px 12px;margin-bottom:10px;border:1px solid var(--gris2);border-radius:9px;font-size:14px}
+  .btn{padding:10px 16px;background:var(--verde);color:#fff;border:none;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer}
+  .btn:hover{background:var(--verde2)}
+  .btn.sec{background:transparent;color:var(--verde);border:1px solid var(--gris2)}
+  .btn.sec:hover{background:#e7eeeb}
+  .btn.rojo{background:var(--rojo)}
+  .btn.sm{padding:5px 10px;font-size:12px}
+  .msg{color:var(--rojo);font-size:12px;min-height:16px;margin-bottom:8px}
+  header{background:var(--verde2);color:#fff;padding:14px 22px;display:flex;align-items:center;gap:12px}
+  header .logo{font-size:19px;font-weight:800;letter-spacing:-.3px}
+  header .sub{font-size:12px;color:#a9c3bb}
+  header .sp{margin-left:auto;display:flex;gap:10px;align-items:center}
+  header .who{font-size:12px;color:#cfe0d9}
+  main{max-width:1000px;margin:22px auto;padding:0 18px}
+  .bar{display:flex;align-items:center;margin-bottom:14px;gap:12px}
+  .bar h2{font-size:17px;color:var(--verde2)}
+  .bar .sp{margin-left:auto}
+  table{width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;box-shadow:0 4px 18px rgba(33,64,60,.08)}
+  th,td{text-align:left;padding:11px 14px;border-bottom:1px solid var(--gris2);font-size:13px;vertical-align:middle}
+  th{background:var(--verde);color:#fff;font-size:11px;letter-spacing:.3px;text-transform:uppercase}
+  tr:last-child td{border-bottom:none}
+  .pill{display:inline-block;font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;background:#e7eeeb;color:var(--verde2)}
+  .pill.full{background:#fbe7d6;color:var(--naranja2)}
+  .acts{display:flex;gap:6px;flex-wrap:wrap}
+  .modal-bg{display:none;position:fixed;inset:0;z-index:200;background:rgba(20,40,36,.5);align-items:center;justify-content:center}
+  .modal{background:#fff;border-radius:14px;padding:24px;width:420px;max-width:92vw;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal h3{font-size:16px;color:var(--verde2);margin-bottom:4px}
+  .modal p.hint{font-size:12px;color:var(--gris);margin-bottom:14px}
+  .modal .row{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+  .empty{padding:30px;text-align:center;color:var(--gris)}
+  .dev-row{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--gris2);font-size:13px}
+  .dev-row:last-child{border-bottom:none}
+  .ok{color:var(--verde3);font-size:12px}
+</style>
+</head>
+<body>
+
+<!-- LOGIN -->
+<div id="login">
+  <form onsubmit="hacerLogin(event)">
+    <div class="t">Helatek</div>
+    <div class="s">Panel de administración</div>
+    <input id="l-email" type="email" placeholder="Correo de administrador" autocomplete="username">
+    <input id="l-pass" type="password" placeholder="Contraseña" autocomplete="current-password">
+    <div id="l-msg" class="msg"></div>
+    <button id="l-btn" class="btn" type="submit" style="width:100%">Entrar</button>
+  </form>
+</div>
+
+<!-- PANEL -->
+<div id="panel" style="display:none">
+  <header>
+    <span class="logo">Helatek</span>
+    <span class="sub">Panel de administración</span>
+    <span class="sp"><span class="who" id="who"></span><button class="btn sec" style="color:#cfe0d9;border-color:rgba(255,255,255,.25)" onclick="salir()">Salir</button></span>
+  </header>
+  <main>
+    <div class="bar">
+      <h2>Clientes (obradores)</h2>
+      <span class="sp"><button class="btn" onclick="abrirNuevo()">+ Nuevo cliente</button> <button class="btn sec" onclick="cargar()">↻ Actualizar</button></span>
+    </div>
+    <div id="tabla"></div>
+  </main>
+</div>
+
+<!-- MODAL -->
+<div class="modal-bg" id="modal-bg">
+  <div class="modal" id="modal"></div>
+</div>
+
+<script>
+const SUPABASE_URL = 'https://otcvaqijccboixomuwxr.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_mzxr97ySxjXNTTTOP2xEFQ_Ho9rHIfX';
+const FUNCTION_URL = SUPABASE_URL + '/functions/v1/admin';
+const sbc = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+let clientes = [];
+
+function esc(s){ return (s==null?'':String(s)).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fecha(s){ if(!s) return '—'; try{ return new Date(s).toLocaleDateString('es-ES',{day:'2-digit',month:'short',year:'numeric'}); }catch(e){ return '—'; } }
+
+async function callAdmin(payload){
+  const { data:{ session } } = await sbc.auth.getSession();
+  if(!session) throw new Error('Sesión caducada. Vuelve a entrar.');
+  const res = await fetch(FUNCTION_URL, {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json', 'Authorization':'Bearer '+session.access_token, 'apikey':SUPABASE_KEY },
+    body: JSON.stringify(payload)
+  });
+  const j = await res.json().catch(()=>({error:'Respuesta no válida'}));
+  if(!res.ok) throw new Error(j.error || ('Error '+res.status));
+  return j.data;
+}
+
+// ---------- LOGIN ----------
+async function hacerLogin(ev){
+  ev.preventDefault();
+  const email=(document.getElementById('l-email').value||'').trim();
+  const pass=document.getElementById('l-pass').value||'';
+  const msg=document.getElementById('l-msg'); const btn=document.getElementById('l-btn');
+  msg.textContent=''; btn.disabled=true; btn.textContent='Entrando…';
+  try{
+    const { error } = await sbc.auth.signInWithPassword({ email, password: pass });
+    if(error) throw new Error('Correo o contraseña incorrectos.');
+    await entrar();
+  }catch(e){ msg.textContent = e.message; }
+  finally{ btn.disabled=false; btn.textContent='Entrar'; }
+}
+async function entrar(){
+  // Verifica que es admin intentando listar
+  try{
+    const { data:{ user } } = await sbc.auth.getUser();
+    document.getElementById('who').textContent = user ? user.email : '';
+    await cargar();
+    document.getElementById('login').style.display='none';
+    document.getElementById('panel').style.display='block';
+  }catch(e){
+    if(/no autorizado/i.test(e.message)){
+      document.getElementById('l-msg').textContent='Esta cuenta no tiene permiso de administrador.';
+      await sbc.auth.signOut();
+    } else {
+      document.getElementById('l-msg').textContent = e.message;
+    }
+  }
+}
+async function salir(){ try{ await sbc.auth.signOut(); }catch(e){} location.reload(); }
+
+// ---------- LISTADO ----------
+async function cargar(){
+  clientes = await callAdmin({ action:'list' });
+  render();
+}
+function render(){
+  const cont=document.getElementById('tabla');
+  if(!clientes.length){ cont.innerHTML='<div class="empty" style="background:#fff;border-radius:12px">Todavía no hay clientes. Pulsa <b>+ Nuevo cliente</b> para dar de alta el primero.</div>'; return; }
+  let rows = clientes.map(c=>`<tr>
+    <td><b>${esc(c.email)}</b></td>
+    <td>${fecha(c.created_at)}</td>
+    <td>${fecha(c.last_sign_in_at)}</td>
+    <td><span class="pill ${c.devices>=2?'full':''}">${c.devices} / 2</span></td>
+    <td><div class="acts">
+      <button class="btn sec sm" onclick="abrirPass('${c.id}','${esc(c.email)}')">Contraseña</button>
+      <button class="btn sec sm" onclick="abrirDispositivos('${c.id}','${esc(c.email)}')">Dispositivos</button>
+      <button class="btn rojo sm" onclick="borrarCliente('${c.id}','${esc(c.email)}')">Borrar</button>
+    </div></td>
+  </tr>`).join('');
+  cont.innerHTML=`<table><thead><tr><th>Cliente</th><th>Alta</th><th>Último acceso</th><th>Dispositivos</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+
+// ---------- MODAL helpers ----------
+function modal(html){ document.getElementById('modal').innerHTML=html; document.getElementById('modal-bg').style.display='flex'; }
+function cerrarModal(){ document.getElementById('modal-bg').style.display='none'; }
+document.getElementById('modal-bg').addEventListener('click', e=>{ if(e.target.id==='modal-bg') cerrarModal(); });
+
+// ---------- NUEVO CLIENTE ----------
+function abrirNuevo(){
+  modal(`<h3>Nuevo cliente</h3><p class="hint">Crea la cuenta del obrador. Dale estos datos al cliente para que entre en la versión COMPLETA.</p>
+    <input id="n-email" type="email" placeholder="Correo del cliente">
+    <input id="n-pass" type="text" placeholder="Contraseña (la que tú elijas)">
+    <div id="n-msg" class="msg"></div>
+    <div class="row"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="n-btn" onclick="crearCliente()">Crear cliente</button></div>`);
+}
+async function crearCliente(){
+  const email=(document.getElementById('n-email').value||'').trim();
+  const pass=(document.getElementById('n-pass').value||'').trim();
+  const msg=document.getElementById('n-msg'); const btn=document.getElementById('n-btn');
+  if(!email||!pass){ msg.textContent='Rellena correo y contraseña.'; return; }
+  if(pass.length<6){ msg.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
+  btn.disabled=true; btn.textContent='Creando…'; msg.textContent='';
+  try{ await callAdmin({ action:'create', email, password: pass }); cerrarModal(); await cargar(); }
+  catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Crear cliente'; }
+}
+
+// ---------- CAMBIAR CONTRASEÑA ----------
+function abrirPass(id,email){
+  modal(`<h3>Cambiar contraseña</h3><p class="hint">Nueva contraseña para <b>${email}</b>. Se la das al cliente; la anterior deja de valer.</p>
+    <input id="p-pass" type="text" placeholder="Nueva contraseña">
+    <div id="p-msg" class="msg"></div>
+    <div class="row"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="p-btn" onclick="guardarPass('${id}')">Guardar</button></div>`);
+}
+async function guardarPass(id){
+  const pass=(document.getElementById('p-pass').value||'').trim();
+  const msg=document.getElementById('p-msg'); const btn=document.getElementById('p-btn');
+  if(pass.length<6){ msg.textContent='Mínimo 6 caracteres.'; return; }
+  btn.disabled=true; btn.textContent='Guardando…'; msg.textContent='';
+  try{ await callAdmin({ action:'setPassword', userId:id, password:pass }); modal(`<h3>✅ Contraseña cambiada</h3><p class="hint">Ya puedes dársela al cliente.</p><div class="row"><button class="btn" onclick="cerrarModal()">Cerrar</button></div>`); }
+  catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Guardar'; }
+}
+
+// ---------- DISPOSITIVOS ----------
+async function abrirDispositivos(id,email){
+  modal(`<h3>Dispositivos de ${email}</h3><p class="hint">Cargando…</p>`);
+  try{
+    const devs = await callAdmin({ action:'listDevices', userId:id });
+    let body = devs.length ? devs.map(d=>`<div class="dev-row"><span>${esc(d.nombre||'Dispositivo')}<br><span style="font-size:11px;color:var(--gris)">últ. acceso ${fecha(d.ultimo_acceso)}</span></span><button class="btn rojo sm" onclick="liberar('${d.id}','${id}','${esc(email)}')">Liberar</button></div>`).join('')
+      : '<p class="hint">Sin dispositivos registrados.</p>';
+    modal(`<h3>Dispositivos de ${email}</h3><p class="hint">${devs.length} de 2 usados. "Liberar" quita un dispositivo para que el cliente pueda usar otro.</p>${body}<div class="row"><button class="btn sec" onclick="cerrarModal()">Cerrar</button></div>`);
+  }catch(e){ modal(`<h3>Dispositivos</h3><p class="msg">${e.message}</p><div class="row"><button class="btn sec" onclick="cerrarModal()">Cerrar</button></div>`); }
+}
+async function liberar(devId,userId,email){
+  try{ await callAdmin({ action:'deleteDevice', id:devId }); await cargar(); await abrirDispositivos(userId,email); }
+  catch(e){ alert(e.message); }
+}
+
+// ---------- BORRAR CLIENTE ----------
+function borrarCliente(id,email){
+  modal(`<h3>Borrar cliente</h3><p class="hint">Vas a borrar <b>${email}</b> y <b>todas sus recetas</b>. Esta acción no se puede deshacer.</p>
+    <div class="row"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn rojo" id="d-btn" onclick="confirmarBorrar('${id}')">Sí, borrar</button></div>`);
+}
+async function confirmarBorrar(id){
+  const btn=document.getElementById('d-btn'); btn.disabled=true; btn.textContent='Borrando…';
+  try{ await callAdmin({ action:'deleteUser', userId:id }); cerrarModal(); await cargar(); }
+  catch(e){ alert(e.message); btn.disabled=false; btn.textContent='Sí, borrar'; }
+}
+
+// ---------- arranque: si ya hay sesión, entrar ----------
+(async()=>{ const { data:{ session } } = await sbc.auth.getSession(); if(session) entrar(); })();
+</script>
+</body>
+</html>
