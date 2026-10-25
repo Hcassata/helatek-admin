@@ -72,7 +72,7 @@
   <main>
     <div class="bar">
       <h2>Clientes (obradores)</h2>
-      <span class="sp"><button class="btn" onclick="abrirNuevo()">+ Nuevo cliente</button> <button class="btn sec" onclick="cargar()">↻ Actualizar</button></span>
+      <span class="sp"><button class="btn" onclick="abrirNuevo()">+ Nuevo cliente</button> <button class="btn sec" id="btn-actualizar" onclick="actualizar()">↻ Actualizar</button></span>
     </div>
     <div id="tabla"></div>
   </main>
@@ -143,6 +143,17 @@ async function salir(){ try{ await sbc.auth.signOut(); }catch(e){} location.relo
 async function cargar(){
   clientes = await callAdmin({ action:'list' });
   render();
+}
+async function actualizar(){
+  const b=document.getElementById('btn-actualizar');
+  if(b){ b.disabled=true; b.textContent='Actualizando…'; }
+  try{
+    await cargar();
+    if(b){ b.textContent='✓ Actualizado'; setTimeout(()=>{ if(b){ b.disabled=false; b.textContent='↻ Actualizar'; } }, 1300); }
+  }catch(e){
+    if(b){ b.disabled=false; b.textContent='↻ Actualizar'; }
+    alert('No se pudo actualizar: '+(e.message||e));
+  }
 }
 function render(){
   const cont=document.getElementById('tabla');
