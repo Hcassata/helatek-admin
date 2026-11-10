@@ -75,7 +75,7 @@
   <main>
     <div class="bar">
       <h2>Clientes (obradores)</h2>
-      <span class="sp"><button class="btn" onclick="abrirNuevo()">+ Nuevo cliente</button> <button class="btn sec" id="btn-actualizar" onclick="actualizar()">↻ Actualizar</button></span>
+      <span class="sp"><button class="btn" onclick="abrirNuevo()">+ Nuevo cliente</button> <button class="btn sec" onclick="verContrasenas()">🔑 Contraseñas</button> <button class="btn sec" id="btn-actualizar" onclick="actualizar()">↻ Actualizar</button></span>
     </div>
     <div id="tabla"></div>
   </main>
@@ -218,6 +218,30 @@ async function guardarLicencias(id){
   btn.disabled=true; btn.textContent='Guardando…'; msg.textContent='';
   try{ await callAdmin({ action:'setLicencias', userId:id, max:n }); cerrarModal(); await cargar(); }
   catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Guardar'; }
+}
+
+// ---------- VER CONTRASEÑAS ----------
+function verContrasenas(){
+  const rows=(clientes||[]).map(c=>{
+    let val;
+    if(c.passCliente) val='<span style="color:#b45309">🔄 cambiada por el cliente</span>';
+    else if(c.pass) val='<span id="cps-'+c.id+'" style="font-family:monospace;font-size:14px">••••••••</span>';
+    else val='<span style="color:var(--gris)">— (ponla con «Cambiar contraseña»)</span>';
+    return '<tr><td style="padding:7px 8px;border-bottom:1px solid #eee"><b>'+esc(c.email)+'</b></td><td style="padding:7px 8px;border-bottom:1px solid #eee">'+val+'</td></tr>';
+  }).join('');
+  modal(`<h3>Contraseñas de clientes</h3>
+    <p class="hint">Solo se puede mostrar la contraseña que <b>tú</b> pones (al crear el cliente o con «Cambiar contraseña»). Si el cliente se la cambia él con el correo de recuperación, aparece como <b>cambiada por el cliente</b> y ya no se puede ver (el sistema la guarda cifrada).</p>
+    <label style="display:flex;align-items:center;gap:6px;font-size:13px;margin:4px 0 12px;cursor:pointer"><input type="checkbox" id="cps-show" style="width:auto;margin:0;padding:0" onchange="togglePass(this.checked)"> Mostrar contraseñas</label>
+    <div style="max-height:50vh;overflow:auto"><table style="width:100%;border-collapse:collapse"><thead><tr><th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--gris2)">Cliente</th><th style="text-align:left;padding:7px 8px;border-bottom:2px solid var(--gris2)">Contraseña</th></tr></thead><tbody>${rows||'<tr><td colspan="2" style="padding:10px">Sin clientes.</td></tr>'}</tbody></table></div>
+    <div class="row"><button class="btn sec" onclick="cerrarModal()">Cerrar</button></div>`);
+}
+function togglePass(show){
+  (clientes||[]).forEach(c=>{
+    if(c.pass && !c.passCliente){
+      const el=document.getElementById('cps-'+c.id);
+      if(el) el.textContent = show ? c.pass : '••••••••';
+    }
+  });
 }
 
 // ---------- CORREO DE RECUPERACIÓN ----------
