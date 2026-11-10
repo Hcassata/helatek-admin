@@ -165,8 +165,9 @@ function render(){
     <td><b>${esc(c.email)}</b></td>
     <td>${fecha(c.created_at)}</td>
     <td>${fecha(c.last_sign_in_at)}</td>
-    <td><span class="pill ${c.devices>=2?'full':''}">${c.devices} / 2</span></td>
+    <td><span class="pill ${c.devices>=(c.limite||2)?'full':''}">${c.devices} / ${c.limite||2}</span></td>
     <td><div class="acts">
+      <button class="btn sec sm" onclick="abrirLicencias('${c.id}','${esc(c.email)}',${c.limite||2})">Licencias</button>
       <button class="btn sec sm" onclick="abrirPass('${c.id}','${esc(c.email)}')">Cambiar contraseña</button>
       <button class="btn sec sm" onclick="enviarRecuperacion('${esc(c.email)}')">Correo recuperación</button>
       <button class="btn sec sm" onclick="abrirDispositivos('${c.id}','${esc(c.email)}')">Dispositivos</button>
@@ -186,18 +187,37 @@ function abrirNuevo(){
   modal(`<h3>Nuevo cliente</h3><p class="hint">Crea la cuenta del obrador. Dale estos datos al cliente para que entre en la versión COMPLETA.</p>
     <input id="n-email" type="email" placeholder="Correo del cliente">
     <input id="n-pass" type="text" placeholder="Contraseña (la que tú elijas)">
+    <label style="display:block;text-align:left;font-size:12px;color:var(--gris);margin:2px 2px 4px">Dispositivos (licencias) que ha pagado</label>
+    <input id="n-dev" type="number" min="1" max="50" value="2" placeholder="Nº de dispositivos">
     <div id="n-msg" class="msg"></div>
     <div class="row"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="n-btn" onclick="crearCliente()">Crear cliente</button></div>`);
 }
 async function crearCliente(){
   const email=(document.getElementById('n-email').value||'').trim();
   const pass=(document.getElementById('n-pass').value||'').trim();
+  const dev=parseInt(document.getElementById('n-dev').value)||2;
   const msg=document.getElementById('n-msg'); const btn=document.getElementById('n-btn');
   if(!email||!pass){ msg.textContent='Rellena correo y contraseña.'; return; }
   if(pass.length<6){ msg.textContent='La contraseña debe tener al menos 6 caracteres.'; return; }
   btn.disabled=true; btn.textContent='Creando…'; msg.textContent='';
-  try{ await callAdmin({ action:'create', email, password: pass }); cerrarModal(); await cargar(); }
+  try{ await callAdmin({ action:'create', email, password: pass, devices: dev }); cerrarModal(); await cargar(); }
   catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Crear cliente'; }
+}
+
+// ---------- LICENCIAS (nº de dispositivos permitidos) ----------
+function abrirLicencias(id,email,actual){
+  modal(`<h3>Licencias de ${email}</h3><p class="hint">Número de dispositivos que este cliente puede tener activos a la vez, según lo que haya pagado. Súbelo si contrata más.</p>
+    <input id="lic-n" type="number" min="1" max="50" value="${actual||2}">
+    <div id="lic-msg" class="msg"></div>
+    <div class="row"><button class="btn sec" onclick="cerrarModal()">Cancelar</button><button class="btn" id="lic-btn" onclick="guardarLicencias('${id}')">Guardar</button></div>`);
+}
+async function guardarLicencias(id){
+  const n=parseInt(document.getElementById('lic-n').value);
+  const msg=document.getElementById('lic-msg'); const btn=document.getElementById('lic-btn');
+  if(!n||n<1){ msg.textContent='Pon un número de dispositivos válido (mínimo 1).'; return; }
+  btn.disabled=true; btn.textContent='Guardando…'; msg.textContent='';
+  try{ await callAdmin({ action:'setLicencias', userId:id, max:n }); cerrarModal(); await cargar(); }
+  catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Guardar'; }
 }
 
 // ---------- CORREO DE RECUPERACIÓN ----------
@@ -236,10 +256,11 @@ async function guardarPass(id){
 async function abrirDispositivos(id,email){
   modal(`<h3>Dispositivos de ${email}</h3><p class="hint">Cargando…</p>`);
   try{
+    const cli = (clientes||[]).find(x=>x.id===id); const lim = cli ? (cli.limite||2) : 2;
     const devs = await callAdmin({ action:'listDevices', userId:id });
     let body = devs.length ? devs.map(d=>`<div class="dev-row"><span>${esc(d.nombre||'Dispositivo')}<br><span style="font-size:11px;color:var(--gris)">últ. acceso ${fecha(d.ultimo_acceso)}</span></span><button class="btn rojo sm" onclick="liberar('${d.id}','${id}','${esc(email)}')">Liberar</button></div>`).join('')
       : '<p class="hint">Sin dispositivos registrados.</p>';
-    modal(`<h3>Dispositivos de ${email}</h3><p class="hint">${devs.length} de 2 usados. "Liberar" quita un dispositivo para que el cliente pueda usar otro.</p>${body}<div class="row"><button class="btn sec" onclick="cerrarModal()">Cerrar</button></div>`);
+    modal(`<h3>Dispositivos de ${email}</h3><p class="hint">${devs.length} de ${lim} usados. "Liberar" quita un dispositivo para que el cliente pueda usar otro.</p>${body}<div class="row"><button class="btn sec" onclick="cerrarModal()">Cerrar</button></div>`);
   }catch(e){ modal(`<h3>Dispositivos</h3><p class="msg">${e.message}</p><div class="row"><button class="btn sec" onclick="cerrarModal()">Cerrar</button></div>`); }
 }
 async function liberar(devId,userId,email){
