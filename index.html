@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Helatek · Panel de administración</title>
+<title>GELATMIX · Panel de administración</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.0/dist/umd/supabase.js"></script>
 <style>
   :root{--verde:#2A4A44;--verde2:#21403C;--verde3:#3C7B6F;--crema:#F5F3EE;--naranja:#E3A85C;--naranja2:#d08c3a;--tinta:#243b37;--gris:#6b7d78;--gris2:#dfe8e5;--rojo:#c0564a}
@@ -53,7 +53,7 @@
 <!-- LOGIN -->
 <div id="login">
   <form onsubmit="hacerLogin(event)">
-    <div class="t">Helatek</div>
+    <div class="t">GELATMIX</div>
     <div class="s">Panel de administración</div>
     <input id="l-email" type="email" placeholder="Correo de administrador" autocomplete="username">
     <input id="l-pass" type="password" placeholder="Contraseña" autocomplete="current-password">
@@ -68,7 +68,7 @@
 <!-- PANEL -->
 <div id="panel" style="display:none">
   <header>
-    <span class="logo">Helatek</span>
+    <span class="logo">GELATMIX</span>
     <span class="sub">Panel de administración</span>
     <span class="sp"><span class="who" id="who"></span><button class="btn sec" style="color:#cfe0d9;border-color:rgba(255,255,255,.25)" onclick="salir()">Salir</button></span>
   </header>
@@ -166,15 +166,25 @@ function render(){
     <td>${fecha(c.created_at)}</td>
     <td>${fecha(c.last_sign_in_at)}</td>
     <td><span class="pill ${c.devices>=(c.limite||2)?'full':''}">${c.devices} / ${c.limite||2}</span></td>
+    <td>${mantenimientoCell(c.renovacion)}</td>
     <td><div class="acts">
       <button class="btn sec sm" onclick="abrirLicencias('${c.id}','${esc(c.email)}',${c.limite||2})">Licencias</button>
+      <button class="btn sec sm" onclick="abrirMantenimiento('${c.id}','${esc(c.email)}')">Mantenimiento</button>
       <button class="btn sec sm" onclick="abrirPass('${c.id}','${esc(c.email)}')">Cambiar contraseña</button>
       <button class="btn sec sm" onclick="enviarRecuperacion('${esc(c.email)}')">Correo recuperación</button>
       <button class="btn sec sm" onclick="abrirDispositivos('${c.id}','${esc(c.email)}')">Dispositivos</button>
       <button class="btn rojo sm" onclick="borrarCliente('${c.id}','${esc(c.email)}')">Borrar</button>
     </div></td>
   </tr>`).join('');
-  cont.innerHTML=`<table><thead><tr><th>Cliente</th><th>Alta</th><th>Último acceso</th><th>Dispositivos</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table>`;
+  cont.innerHTML=`<table><thead><tr><th>Cliente</th><th>Alta</th><th>Último acceso</th><th>Dispositivos</th><th>Mantenimiento</th><th>Acciones</th></tr></thead><tbody>${rows}</tbody></table>`;
+}
+// estado del mantenimiento anual (renovación)
+function diasHasta(fechaISO){ if(!fechaISO) return null; const h=new Date(); h.setHours(0,0,0,0); const r=new Date(fechaISO); return Math.round((r-h)/86400000); }
+function mantenimientoCell(renov){
+  if(!renov) return '<span style="color:var(--gris);font-size:12px">—</span>';
+  const d=diasHasta(renov); let col='#16a34a', txt='Vigente';
+  if(d<0){ col='#c0564a'; txt='Caducado'; } else if(d<=30){ col='#b45309'; txt='Renovar pronto'; }
+  return '<div style="font-size:12px"><span class="pill" style="background:'+col+';color:#fff">'+txt+'</span><br><span style="color:var(--gris)">'+fecha(renov)+'</span></div>';
 }
 
 // ---------- MODAL helpers ----------
@@ -218,6 +228,43 @@ async function guardarLicencias(id){
   btn.disabled=true; btn.textContent='Guardando…'; msg.textContent='';
   try{ await callAdmin({ action:'setLicencias', userId:id, max:n }); cerrarModal(); await cargar(); }
   catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Guardar'; }
+}
+
+// ---------- MANTENIMIENTO ANUAL ----------
+function abrirMantenimiento(id,email){
+  const c=(clientes||[]).find(x=>x.id===id)||{};
+  const alta = c.created_at ? fecha(c.created_at) : '—';
+  const renov = c.renovacion || '';
+  const d = diasHasta(renov);
+  let estado='Sin fecha';
+  if(renov){ if(d<0) estado='<b style="color:#c0564a">Caducado</b> (hace '+(-d)+' días)'; else if(d<=30) estado='<b style="color:#b45309">Renovar pronto</b> ('+d+' días)'; else estado='<b style="color:#16a34a">Vigente</b> ('+d+' días)'; }
+  modal(`<h3>Mantenimiento de ${email}</h3>
+    <p class="hint">Cuota de mantenimiento anual (60 €). Cuando el cliente paga, renueva un año desde aquí.</p>
+    <div style="font-size:13px;line-height:1.9;margin-bottom:10px">
+      <div><b>Alta:</b> ${alta}</div>
+      <div><b>Renovación:</b> ${renov?fecha(renov):'—'} &nbsp; ${estado}</div>
+    </div>
+    <label style="display:block;text-align:left;font-size:12px;color:var(--gris);margin:2px 2px 4px">Nueva fecha de renovación</label>
+    <input id="mnt-fecha" type="date" value="${renov}">
+    <div id="mnt-msg" class="msg"></div>
+    <div class="row" style="justify-content:space-between">
+      <button class="btn sec" onclick="renovarUnAno('${id}')">+1 año</button>
+      <span><button class="btn sec" onclick="cerrarModal()">Cancelar</button>
+      <button class="btn" id="mnt-btn" onclick="guardarRenovacion('${id}')">Guardar fecha</button></span>
+    </div>`);
+}
+async function renovarUnAno(id){
+  const msg=document.getElementById('mnt-msg');
+  try{ const r=await callAdmin({ action:'setRenovacion', userId:id, addYears:1 }); cerrarModal(); await cargar(); }
+  catch(e){ if(msg) msg.textContent=e.message; }
+}
+async function guardarRenovacion(id){
+  const f=document.getElementById('mnt-fecha').value;
+  const msg=document.getElementById('mnt-msg'); const btn=document.getElementById('mnt-btn');
+  if(!f){ msg.textContent='Elige una fecha.'; return; }
+  btn.disabled=true; btn.textContent='Guardando…'; msg.textContent='';
+  try{ await callAdmin({ action:'setRenovacion', userId:id, fecha:f }); cerrarModal(); await cargar(); }
+  catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Guardar fecha'; }
 }
 
 // ---------- VER CONTRASEÑAS ----------
