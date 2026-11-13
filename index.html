@@ -180,8 +180,10 @@ function render(){
 }
 // estado del mantenimiento anual (renovación)
 function diasHasta(fechaISO){ if(!fechaISO) return null; const h=new Date(); h.setHours(0,0,0,0); const r=new Date(fechaISO); return Math.round((r-h)/86400000); }
+function esPorVida(renov){ return !!renov && String(renov).slice(0,4)==='9999'; }
 function mantenimientoCell(renov){
   if(!renov) return '<span style="color:var(--gris);font-size:12px">—</span>';
+  if(esPorVida(renov)) return '<div style="font-size:12px"><span class="pill" style="background:#2A4A44;color:#fff">♾️ Por vida</span></div>';
   const d=diasHasta(renov); let col='#16a34a', txt='Vigente';
   if(d<0){ col='#c0564a'; txt='Caducado'; } else if(d<=30){ col='#b45309'; txt='Renovar pronto'; }
   return '<div style="font-size:12px"><span class="pill" style="background:'+col+';color:#fff">'+txt+'</span><br><span style="color:var(--gris)">'+fecha(renov)+'</span></div>';
@@ -235,23 +237,35 @@ function abrirMantenimiento(id,email){
   const c=(clientes||[]).find(x=>x.id===id)||{};
   const alta = c.created_at ? fecha(c.created_at) : '—';
   const renov = c.renovacion || '';
+  const porVida = esPorVida(renov);
   const d = diasHasta(renov);
   let estado='Sin fecha';
-  if(renov){ if(d<0) estado='<b style="color:#c0564a">Caducado</b> (hace '+(-d)+' días)'; else if(d<=30) estado='<b style="color:#b45309">Renovar pronto</b> ('+d+' días)'; else estado='<b style="color:#16a34a">Vigente</b> ('+d+' días)'; }
+  if(porVida) estado='<b style="color:#2A4A44">Por vida</b> (no caduca)';
+  else if(renov){ if(d<0) estado='<b style="color:#c0564a">Caducado</b> (hace '+(-d)+' días)'; else if(d<=30) estado='<b style="color:#b45309">Renovar pronto</b> ('+d+' días)'; else estado='<b style="color:#16a34a">Vigente</b> ('+d+' días)'; }
   modal(`<h3>Mantenimiento de ${email}</h3>
-    <p class="hint">Cuota de mantenimiento anual (60 €). Cuando el cliente paga, renueva un año desde aquí.</p>
+    <p class="hint">Cuota de mantenimiento anual (60 €). Cuando el cliente paga, renueva un año desde aquí; o marca «Por vida» si no tendrá caducidad.</p>
     <div style="font-size:13px;line-height:1.9;margin-bottom:10px">
       <div><b>Alta:</b> ${alta}</div>
-      <div><b>Renovación:</b> ${renov?fecha(renov):'—'} &nbsp; ${estado}</div>
+      <div><b>Renovación:</b> ${porVida?'Por vida':(renov?fecha(renov):'—')} &nbsp; ${estado}</div>
     </div>
+    <label style="display:flex;align-items:center;gap:8px;text-align:left;font-size:13px;margin:2px 2px 10px;cursor:pointer">
+      <input type="checkbox" id="mnt-porvida" ${porVida?'checked':''} onchange="togglePorVida()" style="width:16px;height:16px"> <b>Por vida</b> (sin caducidad)
+    </label>
     <label style="display:block;text-align:left;font-size:12px;color:var(--gris);margin:2px 2px 4px">Nueva fecha de renovación</label>
-    <input id="mnt-fecha" type="date" value="${renov}">
+    <input id="mnt-fecha" type="date" value="${porVida?'':renov}" ${porVida?'disabled':''}>
     <div id="mnt-msg" class="msg"></div>
     <div class="row" style="justify-content:space-between">
-      <button class="btn sec" onclick="renovarUnAno('${id}')">+1 año</button>
+      <button class="btn sec" id="mnt-1a" onclick="renovarUnAno('${id}')" ${porVida?'disabled':''}>+1 año</button>
       <span><button class="btn sec" onclick="cerrarModal()">Cancelar</button>
-      <button class="btn" id="mnt-btn" onclick="guardarRenovacion('${id}')">Guardar fecha</button></span>
+      <button class="btn" id="mnt-btn" onclick="guardarRenovacion('${id}')">Guardar</button></span>
     </div>`);
+}
+function togglePorVida(){
+  const chk=document.getElementById('mnt-porvida');
+  const f=document.getElementById('mnt-fecha');
+  const b1=document.getElementById('mnt-1a');
+  if(f){ f.disabled=chk.checked; if(chk.checked) f.value=''; }
+  if(b1){ b1.disabled=chk.checked; }
 }
 async function renovarUnAno(id){
   const msg=document.getElementById('mnt-msg');
@@ -259,12 +273,13 @@ async function renovarUnAno(id){
   catch(e){ if(msg) msg.textContent=e.message; }
 }
 async function guardarRenovacion(id){
+  const porVida=!!(document.getElementById('mnt-porvida') && document.getElementById('mnt-porvida').checked);
   const f=document.getElementById('mnt-fecha').value;
   const msg=document.getElementById('mnt-msg'); const btn=document.getElementById('mnt-btn');
-  if(!f){ msg.textContent='Elige una fecha.'; return; }
+  if(!porVida && !f){ msg.textContent='Elige una fecha o marca «Por vida».'; return; }
   btn.disabled=true; btn.textContent='Guardando…'; msg.textContent='';
-  try{ await callAdmin({ action:'setRenovacion', userId:id, fecha:f }); cerrarModal(); await cargar(); }
-  catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Guardar fecha'; }
+  try{ await callAdmin({ action:'setRenovacion', userId:id, fecha: porVida ? '9999-12-31' : f }); cerrarModal(); await cargar(); }
+  catch(e){ msg.textContent=e.message; btn.disabled=false; btn.textContent='Guardar'; }
 }
 
 // ---------- VER CONTRASEÑAS ----------
